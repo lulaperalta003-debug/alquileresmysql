@@ -1,0 +1,176 @@
+CREATE DATABASE IF NOT EXISTS alquileres
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_0900_ai_ci;
+
+USE alquileres;
+
+CREATE TABLE persona (
+  id_persona INT AUTO_INCREMENT PRIMARY KEY,
+  tipo ENUM('PROPIETARIO','INQUILINO','GARANTE') NOT NULL,
+  nombre VARCHAR(120) NOT NULL,
+  dni_cuit VARCHAR(20) NOT NULL,
+  telefono VARCHAR(30),
+  email VARCHAR(120),
+  domicilio VARCHAR(180),
+  UNIQUE KEY uk_persona_dni_cuit (dni_cuit),
+  KEY idx_persona_tipo (tipo)
+) ENGINE=InnoDB;
+
+CREATE TABLE inmueble (
+  id_inmueble INT AUTO_INCREMENT PRIMARY KEY,
+  id_propietario INT NOT NULL,
+  direccion VARCHAR(180) NOT NULL,
+  barrio VARCHAR(80),
+  ciudad VARCHAR(80),
+  provincia VARCHAR(80),
+  observaciones VARCHAR(255),
+  CONSTRAINT fk_inmueble_propietario
+    FOREIGN KEY (id_propietario) REFERENCES persona(id_persona)
+    ON UPDATE CASCADE
+    ON DELETE RESTRICT,
+  KEY idx_inmueble_propietario (id_propietario)
+) ENGINE=InnoDB;
+
+CREATE TABLE unidad (
+  id_unidad INT AUTO_INCREMENT PRIMARY KEY,
+  id_inmueble INT NOT NULL,
+  nombre VARCHAR(60) NOT NULL,
+  piso VARCHAR(20),
+  tipo ENUM('DEPTO','LOCAL','OFICINA','COCHERA','OTRO') NOT NULL DEFAULT 'DEPTO',
+  estado ENUM('DISPONIBLE','OCUPADA','INACTIVA') NOT NULL DEFAULT 'DISPONIBLE',
+  superficie_m2 DECIMAL(10,2),
+  CONSTRAINT fk_unidad_inmueble
+    FOREIGN KEY (id_inmueble) REFERENCES inmueble(id_inmueble)
+    ON UPDATE CASCADE
+    ON DELETE RESTRICT,
+  UNIQUE KEY uk_unidad_inmueble_nombre (id_inmueble, nombre),
+  KEY idx_unidad_inmueble (id_inmueble),
+  KEY idx_unidad_estado (estado)
+) ENGINE=InnoDB;
+
+CREATE TABLE contrato (
+  id_contrato INT AUTO_INCREMENT PRIMARY KEY,
+  id_unidad INT NOT NULL,
+  id_inquilino INT NOT NULL,
+  fecha_inicio DATE NOT NULL,
+  fecha_fin DATE NOT NULL,
+  alquiler_inicial DECIMAL(12,2) NOT NULL,
+  moneda CHAR(3) NOT NULL DEFAULT 'ARS',
+  actualiza_cada_meses INT NOT NULL DEFAULT 3,
+  indice_ajuste VARCHAR(40) DEFAULT 'IPC',
+  estado ENUM('VIGENTE','FINALIZADO','RESCINDIDO') NOT NULL DEFAULT 'VIGENTE',
+  CONSTRAINT fk_contrato_unidad
+    FOREIGN KEY (id_unidad) REFERENCES unidad(id_unidad)
+    ON UPDATE CASCADE
+    ON DELETE RESTRICT,
+  CONSTRAINT fk_contrato_inquilino
+    FOREIGN KEY (id_inquilino) REFERENCES persona(id_persona)
+    ON UPDATE CASCADE
+    ON DELETE RESTRICT,
+  KEY idx_contrato_unidad (id_unidad),
+  KEY idx_contrato_inquilino (id_inquilino),
+  KEY idx_contrato_estado (estado),
+  KEY idx_contrato_fechas (fecha_inicio, fecha_fin)
+) ENGINE=InnoDB;
+
+CREATE TABLE ajuste_contrato (
+  id_ajuste INT AUTO_INCREMENT PRIMARY KEY,
+  id_contrato INT NOT NULL,
+  fecha_aplicacion DATE NOT NULL,
+  porcentaje DECIMAL(7,4) NOT NULL,
+  alquiler_resultante DECIMAL(12,2) NOT NULL,
+  fuente VARCHAR(60) DEFAULT 'IPC',
+  observaciones VARCHAR(255),
+  CONSTRAINT fk_ajuste_contrato
+    FOREIGN KEY (id_contrato) REFERENCES contrato(id_contrato)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE,
+  UNIQUE KEY uk_ajuste_contrato_fecha (id_contrato, fecha_aplicacion),
+  KEY idx_ajuste_contrato (id_contrato),
+  KEY idx_ajuste_fecha (fecha_aplicacion)
+) ENGINE=InnoDB;
+
+CREATE TABLE garantia (
+  id_garantia INT AUTO_INCREMENT PRIMARY KEY,
+  id_contrato INT NOT NULL,
+  id_garante INT NOT NULL,
+  tipo ENUM('PROPIETARIA','RECIBO_SUELDO','SEGURO_CAUCIÓN','OTRA') NOT NULL,
+  detalle VARCHAR(255),
+  CONSTRAINT fk_garantia_contrato
+    FOREIGN KEY (id_contrato) REFERENCES contrato(id_contrato)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE,
+  CONSTRAINT fk_garantia_garante
+    FOREIGN KEY (id_garante) REFERENCES persona(id_persona)
+    ON UPDATE CASCADE
+    ON DELETE RESTRICT,
+  UNIQUE KEY uk_garantia_contrato_garante (id_contrato, id_garante),
+  KEY idx_garantia_contrato (id_contrato),
+  KEY idx_garantia_garante (id_garante)
+) ENGINE=InnoDB;
+
+CREATE TABLE pago (
+  id_pago INT AUTO_INCREMENT PRIMARY KEY,
+  id_contrato INT NOT NULL,
+  periodo INT NOT NULL,                 -- AAAAMM (ej 202602)
+  fecha_vencimiento DATE NOT NULL,
+  fecha_pago DATE,
+  importe DECIMAL(12,2) NOT NULL,
+  interes DECIMAL(12,2) NOT NULL DEFAULT 0,
+  estado ENUM('PENDIENTE','PAGADO','ANULADO') NOT NULL DEFAULT 'PENDIENTE',
+  medio ENUM('EFECTIVO','TRANSFERENCIA','TARJETA','OTRO') DEFAULT 'TRANSFERENCIA',
+  observaciones VARCHAR(255),
+  CONSTRAINT fk_pago_contrato
+    FOREIGN KEY (id_contrato) REFERENCES contrato(id_contrato)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE,
+  UNIQUE KEY uk_pago_contrato_periodo (id_contrato, periodo),
+  KEY idx_pago_contrato (id_contrato),
+  KEY idx_pago_estado (estado),
+  KEY idx_pago_fechas (fecha_vencimiento, fecha_pago)
+) ENGINE=InnoDB;
+
+CREATE TABLE recibo (
+  id_recibo INT AUTO_INCREMENT PRIMARY KEY,
+  id_pago INT NOT NULL,
+  numero VARCHAR(30) NOT NULL,
+  fecha_emision DATE NOT NULL,
+  pdf_url VARCHAR(255),
+  CONSTRAINT fk_recibo_pago
+    FOREIGN KEY (id_pago) REFERENCES pago(id_pago)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE,
+  UNIQUE KEY uk_recibo_pago (id_pago),
+  UNIQUE KEY uk_recibo_numero (numero)
+) ENGINE=InnoDB;
+
+CREATE TABLE pago_garantia (
+  id_pago_garantia INT AUTO_INCREMENT PRIMARY KEY,
+  id_contrato INT NOT NULL,
+  fecha DATE NOT NULL,
+  tipo ENUM('INGRESO','DEVOLUCION') NOT NULL,
+  importe DECIMAL(12,2) NOT NULL,
+  observaciones VARCHAR(255),
+  CONSTRAINT fk_pago_garantia_contrato
+    FOREIGN KEY (id_contrato) REFERENCES contrato(id_contrato)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE,
+  KEY idx_pago_garantia_contrato (id_contrato),
+  KEY idx_pago_garantia_fecha (fecha)
+) ENGINE=InnoDB;
+
+CREATE TABLE gasto (
+  id_gasto INT AUTO_INCREMENT PRIMARY KEY,
+  id_unidad INT NOT NULL,
+  fecha DATE NOT NULL,
+  concepto VARCHAR(120) NOT NULL,
+  importe DECIMAL(12,2) NOT NULL,
+  pagado_por ENUM('PROPIETARIO','INQUILINO','ADMIN') NOT NULL DEFAULT 'PROPIETARIO',
+  observaciones VARCHAR(255),
+  CONSTRAINT fk_gasto_unidad
+    FOREIGN KEY (id_unidad) REFERENCES unidad(id_unidad)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE,
+  KEY idx_gasto_unidad (id_unidad),
+  KEY idx_gasto_fecha (fecha)
+) ENGINE=InnoDB;
