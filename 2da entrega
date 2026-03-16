@@ -1,0 +1,374 @@
+
+   1) CREAR BASE DE DATOS
+
+IF DB_ID('ALQUILERES') IS NULL
+BEGIN
+    CREATE DATABASE ALQUILERES;
+END
+GO
+
+USE ALQUILERES;
+GO
+
+
+   3) CREACION DE TABLAS
+
+
+CREATE TABLE PROPIETARIO (
+    id_propietario INT IDENTITY(1,1) PRIMARY KEY,
+    nombre_apellido VARCHAR(100) NOT NULL,
+    dni_cuit VARCHAR(20) NOT NULL UNIQUE,
+    telefono VARCHAR(30),
+    email VARCHAR(100),
+    domicilio_fiscal VARCHAR(150)
+);
+GO
+
+CREATE TABLE INQUILINO (
+    id_inquilino INT IDENTITY(1,1) PRIMARY KEY,
+    nombre_apellido VARCHAR(100) NOT NULL,
+    dni_cuit VARCHAR(20) NOT NULL UNIQUE,
+    telefono VARCHAR(30),
+    email VARCHAR(100),
+    domicilio_actual VARCHAR(150)
+);
+GO
+
+CREATE TABLE INMUEBLE (
+    id_inmueble INT IDENTITY(1,1) PRIMARY KEY,
+    id_propietario INT NOT NULL,
+    direccion VARCHAR(150) NOT NULL,
+    barrio_ciudad VARCHAR(100),
+    tipo_inmueble VARCHAR(50),
+    estado VARCHAR(30) NOT NULL,
+    CONSTRAINT FK_INMUEBLE_PROPIETARIO
+        FOREIGN KEY (id_propietario) REFERENCES PROPIETARIO(id_propietario),
+    CONSTRAINT CHK_INMUEBLE_ESTADO
+        CHECK (estado IN ('Disponible', 'Alquilado', 'Mantenimiento'))
+);
+GO
+
+CREATE TABLE CONTRATO (
+    id_contrato INT IDENTITY(1,1) PRIMARY KEY,
+    id_inmueble INT NOT NULL,
+    id_inquilino INT NOT NULL,
+    fecha_inicio DATE NOT NULL,
+    fecha_fin DATE NOT NULL,
+    moneda VARCHAR(10) NOT NULL,
+    monto_inicial DECIMAL(12,2) NOT NULL,
+    frecuencia_ajuste VARCHAR(20),
+    indice_ajuste VARCHAR(30),
+    estado_contrato VARCHAR(30) NOT NULL,
+    CONSTRAINT FK_CONTRATO_INMUEBLE
+        FOREIGN KEY (id_inmueble) REFERENCES INMUEBLE(id_inmueble),
+    CONSTRAINT FK_CONTRATO_INQUILINO
+        FOREIGN KEY (id_inquilino) REFERENCES INQUILINO(id_inquilino),
+    CONSTRAINT CHK_CONTRATO_MONEDA
+        CHECK (moneda IN ('ARS', 'USD')),
+    CONSTRAINT CHK_CONTRATO_ESTADO
+        CHECK (estado_contrato IN ('Vigente', 'Finalizado', 'Rescindido'))
+);
+GO
+
+CREATE TABLE PAGO (
+    id_pago INT IDENTITY(1,1) PRIMARY KEY,
+    id_contrato INT NOT NULL,
+    periodo DATE NOT NULL,
+    fecha_vencimiento DATE NOT NULL,
+    importe_facturado DECIMAL(12,2) NOT NULL,
+    fecha_pago DATE NULL,
+    importe_pagado DECIMAL(12,2) NULL,
+    estado_pago VARCHAR(30) NOT NULL,
+    medio_pago VARCHAR(30) NULL,
+    CONSTRAINT FK_PAGO_CONTRATO
+        FOREIGN KEY (id_contrato) REFERENCES CONTRATO(id_contrato),
+    CONSTRAINT CHK_PAGO_ESTADO
+        CHECK (estado_pago IN ('Pendiente', 'Pagado', 'Parcial', 'Vencido')),
+    CONSTRAINT CHK_PAGO_MEDIO
+        CHECK (medio_pago IN ('Transferencia', 'Efectivo', 'Deposito', 'Tarjeta') OR medio_pago IS NULL)
+);
+GO
+
+CREATE TABLE AJUSTE_CONTRATO (
+    id_ajuste INT IDENTITY(1,1) PRIMARY KEY,
+    id_contrato INT NOT NULL,
+    fecha_aplicacion DATE NOT NULL,
+    indice_usado VARCHAR(30),
+    porcentaje DECIMAL(8,2) NOT NULL,
+    monto_nuevo DECIMAL(12,2) NOT NULL,
+    CONSTRAINT FK_AJUSTE_CONTRATO
+        FOREIGN KEY (id_contrato) REFERENCES CONTRATO(id_contrato)
+);
+GO
+
+CREATE TABLE GARANTIA (
+    id_garantia INT IDENTITY(1,1) PRIMARY KEY,
+    id_contrato INT NOT NULL,
+    tipo_garantia VARCHAR(50) NOT NULL,
+    detalle VARCHAR(200),
+    CONSTRAINT FK_GARANTIA_CONTRATO
+        FOREIGN KEY (id_contrato) REFERENCES CONTRATO(id_contrato)
+);
+GO
+
+
+   4) INSERCION DE DATOS
+
+INSERT INTO PROPIETARIO (nombre_apellido, dni_cuit, telefono, email, domicilio_fiscal)
+VALUES
+('Ana Carolina Taier', '27222333444', '3515000001', 'ana.taier@email.com', 'Nueva Cordoba, Cordoba'),
+('Juan Perez',          '20300111222', '3515000002', 'juan.perez@email.com', 'Centro, Cordoba'),
+('Maria Lopez',         '27333444555', '3515000003', 'maria.lopez@email.com', 'General Paz, Cordoba');
+GO
+
+
+INSERT INTO INQUILINO (nombre_apellido, dni_cuit, telefono, email, domicilio_actual)
+VALUES
+('Carlos Gomez',   '20333444556', '3516000001', 'carlos.gomez@email.com', 'Alberdi, Cordoba'),
+('Lucia Fernandez','27222333445', '3516000002', 'lucia.fernandez@email.com', 'Nueva Cordoba, Cordoba'),
+('Matias Ruiz',    '20333444557', '3516000003', 'matias.ruiz@email.com', 'Centro, Cordoba');
+GO
+
+
+INSERT INTO INMUEBLE (id_propietario, direccion, barrio_ciudad, tipo_inmueble, estado)
+VALUES
+(1, 'Transito Caceres 484 Piso 7 C', 'Nueva Cordoba', 'Departamento', 'Disponible'),
+(2, 'Av Colon 123',                  'Centro',        'Casa',         'Disponible'),
+(3, 'Independencia 541',            'Nueva Cordoba', 'Departamento', 'Mantenimiento');
+GO
+
+
+INSERT INTO CONTRATO
+(id_inmueble, id_inquilino, fecha_inicio, fecha_fin, moneda, monto_inicial, frecuencia_ajuste, indice_ajuste, estado_contrato)
+VALUES
+(1, 1, '2026-01-01', '2027-12-31', 'ARS', 650000.00, 'Trimestral', 'IPC', 'Vigente'),
+(2, 2, '2025-06-01', '2026-05-31', 'ARS', 480000.00, 'Semestral',  'IPC', 'Vigente'),
+(3, 3, '2024-01-01', '2025-01-01', 'USD', 450.00,    'Trimestral', 'Fijo','Finalizado');
+GO
+
+
+INSERT INTO PAGO
+(id_contrato, periodo, fecha_vencimiento, importe_facturado, fecha_pago, importe_pagado, estado_pago, medio_pago)
+VALUES
+(1, '2026-01-01', '2026-01-10', 650000.00, '2026-01-08', 650000.00, 'Pagado',   'Transferencia'),
+(1, '2026-02-01', '2026-02-10', 650000.00, '2026-02-15', 650000.00, 'Pagado',   'Efectivo'),
+(1, '2026-03-01', '2026-03-10', 650000.00, NULL,         NULL,      'Pendiente', NULL),
+(2, '2025-06-01', '2025-06-10', 480000.00, '2025-06-09', 480000.00, 'Pagado',   'Transferencia'),
+(2, '2025-07-01', '2025-07-10', 480000.00, '2025-07-20', 200000.00, 'Parcial',  'Deposito'),
+(3, '2024-01-01', '2024-01-10', 450.00,    '2024-01-08', 450.00,    'Pagado',   'Transferencia');
+GO
+
+
+INSERT INTO AJUSTE_CONTRATO (id_contrato, fecha_aplicacion, indice_usado, porcentaje, monto_nuevo)
+VALUES
+(1, '2026-04-01', 'IPC', 12.50, 731250.00),
+(2, '2025-12-01', 'IPC', 18.00, 566400.00),
+(3, '2024-04-01', 'Fijo', 10.00, 495.00);
+GO
+
+
+INSERT INTO GARANTIA (id_contrato, tipo_garantia, detalle)
+VALUES
+(1, 'Recibo sueldo',   'Garantia con dos recibos de sueldo'),
+(2, 'Seguro caucion',  'Poliza aprobada por compania aseguradora'),
+(3, 'Propietaria',     'Garantia propietaria en Cordoba');
+GO
+
+
+   5) VISTAS 
+  
+CREATE VIEW vw_contratos_vigentes
+AS
+SELECT
+    c.id_contrato,
+    i.direccion,
+    i.barrio_ciudad,
+    inq.nombre_apellido AS inquilino,
+    c.fecha_inicio,
+    c.fecha_fin,
+    c.moneda,
+    c.monto_inicial,
+    c.frecuencia_ajuste,
+    c.indice_ajuste,
+    c.estado_contrato
+FROM CONTRATO c
+INNER JOIN INMUEBLE i
+    ON c.id_inmueble = i.id_inmueble
+INNER JOIN INQUILINO inq
+    ON c.id_inquilino = inq.id_inquilino
+WHERE c.estado_contrato = 'Vigente';
+GO
+
+CREATE VIEW vw_pagos_pendientes
+AS
+SELECT
+    p.id_pago,
+    p.id_contrato,
+    p.periodo,
+    p.fecha_vencimiento,
+    p.importe_facturado,
+    p.importe_pagado,
+    p.estado_pago,
+    p.medio_pago
+FROM PAGO p
+WHERE p.estado_pago IN ('Pendiente', 'Parcial');
+GO
+
+CREATE VIEW vw_resumen_ingresos_contrato
+AS
+SELECT
+    c.id_contrato,
+    i.direccion,
+    inq.nombre_apellido AS inquilino,
+    COUNT(p.id_pago) AS cantidad_pagos_registrados,
+    SUM(ISNULL(p.importe_pagado, 0)) AS total_pagado,
+    SUM(ISNULL(p.importe_facturado, 0)) AS total_facturado
+FROM CONTRATO c
+INNER JOIN INMUEBLE i
+    ON c.id_inmueble = i.id_inmueble
+INNER JOIN INQUILINO inq
+    ON c.id_inquilino = inq.id_inquilino
+LEFT JOIN PAGO p
+    ON c.id_contrato = p.id_contrato
+GROUP BY
+    c.id_contrato,
+    i.direccion,
+    inq.nombre_apellido;
+GO
+
+
+   6) FUNCIONES (2)
+
+CREATE FUNCTION fn_total_pagado_contrato (@id_contrato INT)
+RETURNS DECIMAL(12,2)
+AS
+BEGIN
+    DECLARE @total DECIMAL(12,2);
+
+    SELECT @total = SUM(ISNULL(importe_pagado, 0))
+    FROM PAGO
+    WHERE id_contrato = @id_contrato;
+
+    RETURN ISNULL(@total, 0);
+END;
+GO
+
+CREATE FUNCTION fn_cantidad_pagos_contrato (@id_contrato INT)
+RETURNS INT
+AS
+BEGIN
+    DECLARE @cantidad INT;
+
+    SELECT @cantidad = COUNT(*)
+    FROM PAGO
+    WHERE id_contrato = @id_contrato;
+
+    RETURN ISNULL(@cantidad, 0);
+END;
+GO
+
+
+   7) PROCEDIMIENTOS ALMACENADOS
+
+/* Procedimiento 1: registrar un pago */
+CREATE PROCEDURE sp_registrar_pago
+    @id_contrato INT,
+    @periodo DATE,
+    @fecha_vencimiento DATE,
+    @importe_facturado DECIMAL(12,2),
+    @fecha_pago DATE = NULL,
+    @importe_pagado DECIMAL(12,2) = NULL,
+    @medio_pago VARCHAR(30) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    INSERT INTO PAGO
+    (
+        id_contrato,
+        periodo,
+        fecha_vencimiento,
+        importe_facturado,
+        fecha_pago,
+        importe_pagado,
+        estado_pago,
+        medio_pago
+    )
+    VALUES
+    (
+        @id_contrato,
+        @periodo,
+        @fecha_vencimiento,
+        @importe_facturado,
+        @fecha_pago,
+        @importe_pagado,
+        CASE
+            WHEN @importe_pagado IS NULL OR @importe_pagado = 0 THEN 'Pendiente'
+            WHEN @importe_pagado < @importe_facturado THEN 'Parcial'
+            ELSE 'Pagado'
+        END,
+        @medio_pago
+    );
+END;
+GO
+
+/* Procedimiento 2: obtener pagos de un contrato */
+CREATE PROCEDURE sp_obtener_pagos_por_contrato
+    @id_contrato INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        id_pago,
+        id_contrato,
+        periodo,
+        fecha_vencimiento,
+        importe_facturado,
+        fecha_pago,
+        importe_pagado,
+        estado_pago,
+        medio_pago
+    FROM PAGO
+    WHERE id_contrato = @id_contrato
+    ORDER BY periodo;
+END;
+GO
+
+
+   8) TRIGGERS 
+
+CREATE TRIGGER trg_pago_estado_automatico
+ON PAGO
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE p
+    SET estado_pago =
+        CASE
+            WHEN i.importe_pagado IS NULL OR i.importe_pagado = 0 THEN 'Pendiente'
+            WHEN i.importe_pagado < i.importe_facturado THEN 'Parcial'
+            ELSE 'Pagado'
+        END
+    FROM PAGO p
+    INNER JOIN inserted i
+        ON p.id_pago = i.id_pago;
+END;
+GO
+
+CREATE TRIGGER trg_contrato_actualiza_inmueble
+ON CONTRATO
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE i
+    SET estado = 'Alquilado'
+    FROM INMUEBLE i
+    INNER JOIN inserted ins
+        ON i.id_inmueble = ins.id_inmueble;
+END;
+GO
